@@ -180,10 +180,8 @@
                 </div>
             </div>
             <div class="client-controls">
-                <!-- Dropdown for Admins, Static span for restricted Clients -->
                 <select id="siteFilter" class="site-badge" style="display: none;"></select>
                 <span id="clientNameDisplay" class="site-badge" style="display: none; background: transparent; border-color: rgba(255,255,255,0.2);"></span>
-                
                 <button class="btn-outline" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
             </div>
         </header>
@@ -337,7 +335,7 @@
     <!-- FIREBASE AND APP LOGIC -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, where, getDocs, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
 
         // FIREBASE CONFIGURATION
@@ -412,7 +410,32 @@
             link.click();
         }
 
-        // MONTHLY ATTENDANCE EXPORT
+        // --- SMART CROSS-REFERENCE FILTER HELPER ---
+        function getSiteFilters(activeSite) {
+            const siteEmployees = db.employees.filter(emp => activeSite === "All" || emp.dutyPost === activeSite);
+            const validNames = siteEmployees.map(e => (e.name || "").toLowerCase().trim());
+            const validIds = siteEmployees.map(e => (e.id || "").toLowerCase().trim());
+
+            const belongs = (siteName, userName, empId) => {
+                if (activeSite === "All") return true;
+                
+                // Direct site match
+                if (siteName && siteName.trim().toLowerCase() === activeSite.toLowerCase()) return true;
+                
+                // Cross-reference match (guard name or ID)
+                const u = (userName || "").toLowerCase().trim();
+                const i = (empId || "").toLowerCase().trim();
+                return validNames.includes(u) || validIds.includes(u) || validIds.includes(i);
+            };
+
+            return {
+                employees: siteEmployees,
+                patrols: db.observations.filter(o => belongs(o.site, o.observer, o.empId)),
+                incidents: db.incidents.filter(i => belongs(i.location, i.reporter, i.empId))
+            };
+        }
+
+        // EXPORT BUTTONS
         document.getElementById('exportAttendanceBtn').addEventListener('click', () => {
             const monthVal = document.getElementById('attendanceMonthExport').value; 
             if (!monthVal) return alert("Please select a month to export.");
@@ -422,7 +445,7 @@
             const daysInMonth = new Date(year, month, 0).getDate();
             
             let csv = "Date,Guard Name,Shift,Clock In,Clock Out,Status\n";
-            const relevantEmployees = db.employees.filter(emp => activeSite === "All" || emp.dutyPost === activeSite);
+            const { employees: relevantEmployees } = getSiteFilters(activeSite);
             
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
@@ -443,14 +466,12 @@
                     csv += `"${dateStr}","${emp.name}","${emp.shift || 'N/A'}","${timeIn}","${timeOut}","${status}"\n`;
                 });
             }
-            
             downloadCSV(`Monthly_Attendance_${activeSite.replace(/\s+/g, '_')}_${monthVal}.csv`, csv);
         });
 
         document.getElementById('exportPatrolsBtn').addEventListener('click', () => {
             const activeSite = window.clientProfile ? window.clientProfile.name : document.getElementById('siteFilter').value;
-            let filteredPatrols = db.observations;
-            if(activeSite !== "All") filteredPatrols = filteredPatrols.filter(o => o.site === activeSite);
+            const { patrols: filteredPatrols } = getSiteFilters(activeSite);
             
             let csv = "Date & Time,Reporting Guard,Observation Details,Status\n";
             filteredPatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
@@ -463,8 +484,7 @@
 
         document.getElementById('exportIncidentsBtn').addEventListener('click', () => {
             const activeSite = window.clientProfile ? window.clientProfile.name : document.getElementById('siteFilter').value;
-            let filteredIncidents = db.incidents;
-            if(activeSite !== "All") filteredIncidents = filteredIncidents.filter(i => i.location === activeSite);
+            const { incidents: filteredIncidents } = getSiteFilters(activeSite);
             
             let csv = "Date & Time,Category,Incident Details,Status\n";
             filteredIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
@@ -490,17 +510,25 @@
 
                 try {
                     // Check if user is an official registered client by email
-                    const clientsQ = query(collection(firestore, "clients"), where("email", "==", user.email));
+                    const clientsQ = query(collection(firestore, "users"), where("email", "==", user.email));
                     const clientSnap = await getDocs(clientsQ);
 
                     if (!clientSnap.empty) {
+                        const portalUser = clientSnap.docs[0].data();
+                        
                         // Strict Client Lockdown
-                        window.clientProfile = clientSnap.docs[0].data();
-                        document.getElementById('siteFilter').style.display = 'none';
-                        document.getElementById('clientNameDisplay').innerHTML = `<i class="fa-solid fa-building-shield"></i> Site: ${window.clientProfile.name}`;
-                        document.getElementById('clientNameDisplay').style.display = 'block';
+                        if (portalUser.role === "Client" && portalUser.clientSite) {
+                            window.clientProfile = { name: portalUser.clientSite, contactPerson: portalUser.name };
+                            document.getElementById('siteFilter').style.display = 'none';
+                            document.getElementById('clientNameDisplay').innerHTML = `<i class="fa-solid fa-building-shield"></i> Site: ${window.clientProfile.name}`;
+                            document.getElementById('clientNameDisplay').style.display = 'block';
+                        } else {
+                            // Unrestricted View (Likely an Admin checking the portal)
+                            window.clientProfile = null; 
+                            document.getElementById('siteFilter').style.display = 'block';
+                            document.getElementById('clientNameDisplay').style.display = 'none';
+                        }
                     } else {
-                        // Unrestricted View (Likely an Admin checking the portal)
                         window.clientProfile = null; 
                         document.getElementById('siteFilter').style.display = 'block';
                         document.getElementById('clientNameDisplay').style.display = 'none';
@@ -555,22 +583,14 @@
 
         // REAL-TIME DATA SYNC
         function startSync() {
+            // We fetch ALL data to allow for robust cross-reference filtering client-side
             let empQuery = collection(firestore, "employees");
             let obsQuery = collection(firestore, "observations");
             let incQuery = collection(firestore, "incidents");
 
-            // Optimize: If strict client, only download their specific site data
-            if (window.clientProfile) {
-                empQuery = query(collection(firestore, "employees"), where("dutyPost", "==", window.clientProfile.name));
-                obsQuery = query(collection(firestore, "observations"), where("site", "==", window.clientProfile.name));
-                incQuery = query(collection(firestore, "incidents"), where("location", "==", window.clientProfile.name));
-            }
-
             syncUnsubscribers.push(onSnapshot(empQuery, snap => { db.employees = snap.docs.map(d => ({id: d.id, ...d.data()})); renderUI(); }));
             syncUnsubscribers.push(onSnapshot(obsQuery, snap => { db.observations = snap.docs.map(d => ({id: d.id, ...d.data()})); renderUI(); }));
             syncUnsubscribers.push(onSnapshot(incQuery, snap => { db.incidents = snap.docs.map(d => ({id: d.id, ...d.data()})); renderUI(); }));
-            
-            // Attendance logs map via Employee ID, so we fetch and filter locally
             syncUnsubscribers.push(onSnapshot(collection(firestore, "attendance"), snap => { db.attendance = snap.docs.map(d => ({id: d.id, ...d.data()})); renderUI(); }));
         }
 
@@ -620,6 +640,9 @@
             const currentMonth = new Date().getMonth();
             const currentYear = new Date().getFullYear();
 
+            // Run Smart Cross-Reference Filter
+            let { employees: siteEmployees, patrols: filteredPatrols, incidents: filteredIncidents } = getSiteFilters(activeSite);
+
             let todayGuards = 0, monthPatrols = 0, monthIncidents = 0;
 
             // 1. RENDER ATTENDANCE
@@ -628,9 +651,7 @@
             attBody.innerHTML = '';
             
             const relevantLogs = db.attendance.filter(log => log.date === attDate);
-            db.employees.forEach(emp => {
-                if(activeSite !== "All" && emp.dutyPost !== activeSite) return;
-                
+            siteEmployees.forEach(emp => {
                 const log = relevantLogs.find(l => l.empId === emp.id);
                 if (log) todayGuards++; 
                 
@@ -658,14 +679,14 @@
             // 2. RENDER PATROLS
             const patBody = document.querySelector("#patrolsTable tbody");
             patBody.innerHTML = '';
-            let filteredPatrols = db.observations;
-            if(activeSite !== "All") filteredPatrols = filteredPatrols.filter(o => o.site === activeSite);
             
             filteredPatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
                 const d = new Date(obs.date);
                 if(d.getMonth() === currentMonth && d.getFullYear() === currentYear) monthPatrols++;
                 
                 let photoHtml = obs.photo ? `<br><span class="photo-link" onclick="viewGuardPhoto('${obs.photo}')"><i class="fa-solid fa-image"></i> View Proof</span>` : "";
+                
+                // Read-only static badge
                 let statusClass = obs.status === 'Addressed' ? 'success-badge' : (obs.status === 'Reviewed' ? 'info-badge' : 'warning-badge');
                 let statusIcon = obs.status === 'Addressed' ? 'fa-check-double' : (obs.status === 'Reviewed' ? 'fa-check' : 'fa-clock');
 
@@ -679,9 +700,6 @@
             const incCategoryFilter = document.getElementById('incidentCategoryFilter').value;
             incBody.innerHTML = '';
             
-            let filteredIncidents = db.incidents;
-            if(activeSite !== "All") filteredIncidents = filteredIncidents.filter(i => i.location === activeSite);
-            
             // Incident Stats are calculated BEFORE the category filter is applied
             filteredIncidents.forEach(inc => {
                 const d = new Date(inc.date);
@@ -693,6 +711,8 @@
             filteredIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
                 const d = new Date(inc.date);
                 let photoHtml = inc.photo ? `<br><span class="photo-link" style="color:var(--danger-color)" onclick="viewGuardPhoto('${inc.photo}')"><i class="fa-solid fa-triangle-exclamation"></i> View Evidence</span>` : "";
+                
+                // Read-only static badge
                 let statusClass = inc.status === 'Closed' ? 'success-badge' : (inc.status === 'Investigating' ? 'warning-badge' : 'danger-badge');
                 let catColor = inc.category === 'Theft' ? 'var(--danger-color)' : (inc.category === 'Medical' ? 'var(--info-color)' : 'var(--warning-color)');
 
@@ -707,7 +727,7 @@
             document.getElementById('statIncidents').innerText = monthIncidents;
 
             // 5. UPDATE CHARTS
-            renderCharts(filteredPatrols, db.incidents.filter(i => activeSite === "All" || i.location === activeSite), activeSite);
+            renderCharts(filteredPatrols, filteredIncidents, activeSite);
         }
 
         function renderCharts(patrols, incidents, activeSite) {
