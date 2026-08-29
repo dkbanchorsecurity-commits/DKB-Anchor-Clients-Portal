@@ -18,12 +18,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0A2540">
     
-    <!-- Icons -->
+    <!-- Icons & Libraries -->
     <link rel="apple-touch-icon" href="logo.png">
     <link rel="icon" type="image/png" href="logo.png">
-    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
     <style>
         :root {
@@ -51,6 +54,11 @@
         .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
         .btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 15px; border-radius: 4px; cursor: pointer; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
         .btn-outline:hover { background: rgba(229, 62, 62, 0.2); border-color: var(--danger-color); color: var(--danger-color); }
+        
+        .btn-csv { background-color: #38A169; }
+        .btn-csv:hover:not(:disabled) { background-color: #2F855A; color: white;}
+        .btn-pdf { background-color: #E53E3E; }
+        .btn-pdf:hover:not(:disabled) { background-color: #C53030; color: white;}
 
         /* LOGIN SCREEN */
         #login-container { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)); justify-content: center; align-items: center; z-index: 10000; transition: opacity 0.3s ease; }
@@ -174,6 +182,7 @@
     <div id="app-container">
         <header>
             <div class="brand">
+                <img src="logo.png" alt="DKB Anchor Security Logo" style="max-height: 45px; border-radius: 4px;">
                 <div>
                     <h1>CLIENT PORTAL</h1>
                     <p>DKB Anchor Security Services</p>
@@ -247,7 +256,8 @@
                             </div>
                             <div style="display: flex; align-items: center; gap: 5px; border-left: 2px solid var(--border-color); padding-left: 15px;">
                                 <input type="month" id="attendanceMonthExport" class="search-input" style="width: auto;">
-                                <button class="btn-primary" id="exportAttendanceBtn"><i class="fa-solid fa-file-csv"></i> Download Monthly</button>
+                                <button class="btn-primary btn-csv" id="exportAttendanceCsvBtn"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                                <button class="btn-primary btn-pdf" id="exportAttendancePdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
                             </div>
                         </div>
                     </div>
@@ -275,8 +285,10 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-route"></i> Routine Patrol Logs</h2>
                         <div class="controls-group">
+                            <input type="month" id="patrolMonthFilter" class="search-input" style="width: auto;" title="Filter by Month">
                             <input type="text" class="search-input" id="patrolSearch" placeholder="Search logs...">
-                            <button class="btn-primary" id="exportPatrolsBtn"><i class="fa-solid fa-download"></i> Export</button>
+                            <button class="btn-primary btn-csv" id="exportPatrolsCsvBtn"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                            <button class="btn-primary btn-pdf" id="exportPatrolsPdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -301,6 +313,7 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-triangle-exclamation"></i> Official Incident Reports</h2>
                         <div class="controls-group">
+                            <input type="month" id="incidentMonthFilter" class="search-input" style="width: auto;" title="Filter by Month">
                             <select class="search-input" id="incidentCategoryFilter" style="width: auto;">
                                 <option value="All">All Categories</option>
                                 <option value="Theft">Theft</option>
@@ -310,7 +323,8 @@
                                 <option value="Medical">Medical Emergency</option>
                                 <option value="Other">Other</option>
                             </select>
-                            <button class="btn-primary" id="exportIncidentsBtn"><i class="fa-solid fa-download"></i> Export</button>
+                            <button class="btn-primary btn-csv" id="exportIncidentsCsvBtn"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                            <button class="btn-primary btn-pdf" id="exportIncidentsPdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -372,12 +386,21 @@
         });
 
         // FILTERS SETUP
+        const currentMonthStr = new Date().toISOString().slice(0, 7);
+
         document.getElementById('attendanceDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('attendanceDate').addEventListener('change', renderUI);
         
-        document.getElementById('attendanceMonthExport').value = new Date().toISOString().slice(0, 7);
+        document.getElementById('attendanceMonthExport').value = currentMonthStr;
         
         document.getElementById('siteFilter').addEventListener('change', renderUI);
+        
+        document.getElementById('patrolMonthFilter').value = currentMonthStr;
+        document.getElementById('patrolMonthFilter').addEventListener('change', renderUI);
+
+        document.getElementById('incidentMonthFilter').value = currentMonthStr;
+        document.getElementById('incidentMonthFilter').addEventListener('change', renderUI);
+
         document.getElementById('incidentCategoryFilter').addEventListener('change', renderUI);
 
         document.getElementById('patrolSearch').addEventListener("keyup", function() { 
@@ -410,6 +433,34 @@
             link.click();
         }
 
+        // PDF EXPORT HELPER
+        function generatePDF(title, columns, data, filename) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape');
+            
+            // DKB Anchor Branding Header
+            doc.setFontSize(22);
+            doc.setTextColor(10, 37, 64); 
+            doc.text("DKB Anchor Security Services", 14, 20);
+            
+            doc.setFontSize(14);
+            doc.setTextColor(100);
+            doc.text(title, 14, 28);
+            
+            doc.autoTable({
+                startY: 35,
+                head: [columns],
+                body: data,
+                theme: 'striped',
+                headStyles: { fillColor: [10, 37, 64], textColor: [212, 175, 55] },
+                styles: { fontSize: 10, cellPadding: 3 },
+                alternateRowStyles: { fillColor: [244, 246, 248] },
+                margin: { top: 30 }
+            });
+            
+            doc.save(filename);
+        }
+
         // --- SMART CROSS-REFERENCE FILTER HELPER ---
         function getSiteFilters(activeSite) {
             const siteEmployees = db.employees.filter(emp => activeSite === "All" || emp.dutyPost === activeSite);
@@ -418,11 +469,8 @@
 
             const belongs = (siteName, userName, empId) => {
                 if (activeSite === "All") return true;
-                
-                // Direct site match
                 if (siteName && siteName.trim().toLowerCase() === activeSite.toLowerCase()) return true;
                 
-                // Cross-reference match (guard name or ID)
                 const u = (userName || "").toLowerCase().trim();
                 const i = (empId || "").toLowerCase().trim();
                 return validNames.includes(u) || validIds.includes(u) || validIds.includes(i);
@@ -435,8 +483,10 @@
             };
         }
 
-        // EXPORT BUTTONS
-        document.getElementById('exportAttendanceBtn').addEventListener('click', () => {
+        // ==========================================
+        // EXPORT BUTTON EVENTS (CSV)
+        // ==========================================
+        document.getElementById('exportAttendanceCsvBtn').addEventListener('click', () => {
             const monthVal = document.getElementById('attendanceMonthExport').value; 
             if (!monthVal) return alert("Please select a month to export.");
             
@@ -458,10 +508,7 @@
                     let timeIn = log ? (log.clockIn || "-") : "-";
                     let timeOut = log ? (log.clockOut || "-") : "-";
                     let status = isOffDuty ? "Off Duty" : "Absent";
-                    
-                    if (log) {
-                        status = log.clockOut ? "Completed" : "On Duty";
-                    }
+                    if (log) status = log.clockOut ? "Completed" : "On Duty";
                     
                     csv += `"${dateStr}","${emp.name}","${emp.shift || 'N/A'}","${timeIn}","${timeOut}","${status}"\n`;
                 });
@@ -469,9 +516,17 @@
             downloadCSV(`Monthly_Attendance_${activeSite.replace(/\s+/g, '_')}_${monthVal}.csv`, csv);
         });
 
-        document.getElementById('exportPatrolsBtn').addEventListener('click', () => {
+        document.getElementById('exportPatrolsCsvBtn').addEventListener('click', () => {
             const activeSite = window.clientProfile ? window.clientProfile.name : document.getElementById('siteFilter').value;
-            const { patrols: filteredPatrols } = getSiteFilters(activeSite);
+            let { patrols: filteredPatrols } = getSiteFilters(activeSite);
+            
+            const monthVal = document.getElementById('patrolMonthFilter').value;
+            if (monthVal) {
+                filteredPatrols = filteredPatrols.filter(obs => {
+                    const d = new Date(obs.date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === monthVal;
+                });
+            }
             
             let csv = "Date & Time,Reporting Guard,Observation Details,Status\n";
             filteredPatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
@@ -482,9 +537,22 @@
             downloadCSV(`Patrol_Reports_${activeSite.replace(/\s+/g, '_')}.csv`, csv);
         });
 
-        document.getElementById('exportIncidentsBtn').addEventListener('click', () => {
+        document.getElementById('exportIncidentsCsvBtn').addEventListener('click', () => {
             const activeSite = window.clientProfile ? window.clientProfile.name : document.getElementById('siteFilter').value;
-            const { incidents: filteredIncidents } = getSiteFilters(activeSite);
+            let { incidents: filteredIncidents } = getSiteFilters(activeSite);
+            
+            const incMonthVal = document.getElementById('incidentMonthFilter').value;
+            if (incMonthVal) {
+                filteredIncidents = filteredIncidents.filter(inc => {
+                    const d = new Date(inc.date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === incMonthVal;
+                });
+            }
+
+            const incCategoryFilter = document.getElementById('incidentCategoryFilter').value;
+            if(incCategoryFilter !== "All") {
+                filteredIncidents = filteredIncidents.filter(i => i.category === incCategoryFilter);
+            }
             
             let csv = "Date & Time,Category,Incident Details,Status\n";
             filteredIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
@@ -493,6 +561,91 @@
                 csv += `"${dateStr}","${inc.category}","${inc.description.replace(/"/g, '""')}","${inc.status}"\n`;
             });
             downloadCSV(`Incident_Reports_${activeSite.replace(/\s+/g, '_')}.csv`, csv);
+        });
+
+        // ==========================================
+        // EXPORT BUTTON EVENTS (PDF)
+        // ==========================================
+        document.getElementById('exportAttendancePdfBtn').addEventListener('click', () => {
+            const monthVal = document.getElementById('attendanceMonthExport').value; 
+            if (!monthVal) return alert("Please select a month to export.");
+            
+            const activeSite = window.clientProfile ? window.clientProfile.name : document.getElementById('siteFilter').value;
+            const [year, month] = monthVal.split('-');
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            const columns = ["Date", "Guard Name", "Shift", "Clock In", "Clock Out", "Status"];
+            const rows = [];
+            const { employees: relevantEmployees } = getSiteFilters(activeSite);
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
+                const dailyLogs = db.attendance.filter(log => log.date === dateStr);
+                
+                relevantEmployees.forEach(emp => {
+                    const log = dailyLogs.find(l => l.empId === emp.id);
+                    const isOffDuty = emp.status === 'Off Duty';
+                    
+                    let timeIn = log ? (log.clockIn || "-") : "-";
+                    let timeOut = log ? (log.clockOut || "-") : "-";
+                    let status = isOffDuty ? "Off Duty" : "Absent";
+                    if (log) status = log.clockOut ? "Completed" : "On Duty";
+                    
+                    rows.push([dateStr, emp.name, emp.shift || 'N/A', timeIn, timeOut, status]);
+                });
+            }
+            generatePDF(`Monthly Attendance - ${activeSite} (${monthVal})`, columns, rows, `Monthly_Attendance_${activeSite.replace(/\s+/g, '_')}_${monthVal}.pdf`);
+        });
+
+        document.getElementById('exportPatrolsPdfBtn').addEventListener('click', () => {
+            const activeSite = window.clientProfile ? window.clientProfile.name : document.getElementById('siteFilter').value;
+            let { patrols: filteredPatrols } = getSiteFilters(activeSite);
+            
+            const monthVal = document.getElementById('patrolMonthFilter').value;
+            if (monthVal) {
+                filteredPatrols = filteredPatrols.filter(obs => {
+                    const d = new Date(obs.date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === monthVal;
+                });
+            }
+            
+            const columns = ["Date & Time", "Reporting Guard", "Observation Details", "Status"];
+            const rows = [];
+            
+            filteredPatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
+                const d = new Date(obs.date);
+                const dateStr = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                rows.push([dateStr, obs.observer, obs.description, obs.status]);
+            });
+            generatePDF(`Patrol Reports - ${activeSite}`, columns, rows, `Patrol_Reports_${activeSite.replace(/\s+/g, '_')}.pdf`);
+        });
+
+        document.getElementById('exportIncidentsPdfBtn').addEventListener('click', () => {
+            const activeSite = window.clientProfile ? window.clientProfile.name : document.getElementById('siteFilter').value;
+            let { incidents: filteredIncidents } = getSiteFilters(activeSite);
+            
+            const incMonthVal = document.getElementById('incidentMonthFilter').value;
+            if (incMonthVal) {
+                filteredIncidents = filteredIncidents.filter(inc => {
+                    const d = new Date(inc.date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === incMonthVal;
+                });
+            }
+
+            const incCategoryFilter = document.getElementById('incidentCategoryFilter').value;
+            if(incCategoryFilter !== "All") {
+                filteredIncidents = filteredIncidents.filter(i => i.category === incCategoryFilter);
+            }
+            
+            const columns = ["Date & Time", "Category", "Incident Details", "Status"];
+            const rows = [];
+            
+            filteredIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
+                const d = new Date(inc.date);
+                const dateStr = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                rows.push([dateStr, inc.category, inc.description, inc.status]);
+            });
+            generatePDF(`Incident Reports - ${activeSite}`, columns, rows, `Incident_Reports_${activeSite.replace(/\s+/g, '_')}.pdf`);
         });
 
 
@@ -509,7 +662,6 @@
                 }
 
                 try {
-                    // Check if user is an official registered client by email
                     const clientsQ = query(collection(firestore, "users"), where("email", "==", user.email));
                     const clientSnap = await getDocs(clientsQ);
 
@@ -523,7 +675,6 @@
                             document.getElementById('clientNameDisplay').innerHTML = `<i class="fa-solid fa-building-shield"></i> Site: ${window.clientProfile.name}`;
                             document.getElementById('clientNameDisplay').style.display = 'block';
                         } else {
-                            // Unrestricted View (Likely an Admin checking the portal)
                             window.clientProfile = null; 
                             document.getElementById('siteFilter').style.display = 'block';
                             document.getElementById('clientNameDisplay').style.display = 'none';
@@ -583,7 +734,6 @@
 
         // REAL-TIME DATA SYNC
         function startSync() {
-            // We fetch ALL data to allow for robust cross-reference filtering client-side
             let empQuery = collection(firestore, "employees");
             let obsQuery = collection(firestore, "observations");
             let incQuery = collection(firestore, "incidents");
@@ -640,7 +790,6 @@
             const currentMonth = new Date().getMonth();
             const currentYear = new Date().getFullYear();
 
-            // Run Smart Cross-Reference Filter
             let { employees: siteEmployees, patrols: filteredPatrols, incidents: filteredIncidents } = getSiteFilters(activeSite);
 
             let todayGuards = 0, monthPatrols = 0, monthIncidents = 0;
@@ -679,14 +828,25 @@
             // 2. RENDER PATROLS
             const patBody = document.querySelector("#patrolsTable tbody");
             patBody.innerHTML = '';
-            
-            filteredPatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
+
+            const patrolMonthVal = document.getElementById('patrolMonthFilter').value;
+
+            filteredPatrols.forEach(obs => {
                 const d = new Date(obs.date);
                 if(d.getMonth() === currentMonth && d.getFullYear() === currentYear) monthPatrols++;
-                
+            });
+
+            let tablePatrols = filteredPatrols;
+            if (patrolMonthVal) {
+                tablePatrols = tablePatrols.filter(obs => {
+                    const d = new Date(obs.date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === patrolMonthVal;
+                });
+            }
+
+            tablePatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
+                const d = new Date(obs.date);
                 let photoHtml = obs.photo ? `<br><span class="photo-link" onclick="viewGuardPhoto('${obs.photo}')"><i class="fa-solid fa-image"></i> View Proof</span>` : "";
-                
-                // Read-only static badge
                 let statusClass = obs.status === 'Addressed' ? 'success-badge' : (obs.status === 'Reviewed' ? 'info-badge' : 'warning-badge');
                 let statusIcon = obs.status === 'Addressed' ? 'fa-check-double' : (obs.status === 'Reviewed' ? 'fa-check' : 'fa-clock');
 
@@ -698,21 +858,26 @@
             // 3. RENDER INCIDENTS
             const incBody = document.querySelector("#incidentsTable tbody");
             const incCategoryFilter = document.getElementById('incidentCategoryFilter').value;
+            const incidentMonthVal = document.getElementById('incidentMonthFilter').value;
             incBody.innerHTML = '';
-            
-            // Incident Stats are calculated BEFORE the category filter is applied
+
             filteredIncidents.forEach(inc => {
                 const d = new Date(inc.date);
                 if(d.getMonth() === currentMonth && d.getFullYear() === currentYear) monthIncidents++;
             });
 
-            if(incCategoryFilter !== "All") filteredIncidents = filteredIncidents.filter(i => i.category === incCategoryFilter);
+            let tableIncidents = filteredIncidents;
+            if (incidentMonthVal) {
+                tableIncidents = tableIncidents.filter(inc => {
+                    const d = new Date(inc.date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === incidentMonthVal;
+                });
+            }
+            if(incCategoryFilter !== "All") tableIncidents = tableIncidents.filter(i => i.category === incCategoryFilter);
 
-            filteredIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
+            tableIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
                 const d = new Date(inc.date);
                 let photoHtml = inc.photo ? `<br><span class="photo-link" style="color:var(--danger-color)" onclick="viewGuardPhoto('${inc.photo}')"><i class="fa-solid fa-triangle-exclamation"></i> View Evidence</span>` : "";
-                
-                // Read-only static badge
                 let statusClass = inc.status === 'Closed' ? 'success-badge' : (inc.status === 'Investigating' ? 'warning-badge' : 'danger-badge');
                 let catColor = inc.category === 'Theft' ? 'var(--danger-color)' : (inc.category === 'Medical' ? 'var(--info-color)' : 'var(--warning-color)');
 
@@ -734,7 +899,7 @@
             const past7Days = getPast7Days();
             const shortLabels = past7Days.map(formatShortDate);
 
-            // Chart 1: Patrols (Last 7 Days)
+            // Chart 1: Patrols
             let patrolCounts = new Array(7).fill(0);
             patrols.forEach(p => {
                 const pDate = p.date.split('T')[0];
@@ -752,11 +917,10 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
             });
 
-            // Chart 2: Incidents (All Time for Site)
+            // Chart 2: Incidents
             let iCounts = { 'Theft': 0, 'Medical': 0, 'Intrusion': 0, 'Vandalism': 0, 'Assault': 0, 'Other': 0 };
             incidents.forEach(i => { if(iCounts[i.category] !== undefined) iCounts[i.category]++; else iCounts['Other']++; });
             
-            // Remove zero-value categories for clean pie chart
             const iLabels = []; const iData = []; const iColors = [];
             const colorMap = {'Theft':'#E53E3E', 'Medical':'#3182CE', 'Intrusion':'#38A169', 'Vandalism':'#D4AF37', 'Assault':'#805AD5', 'Other':'#718096'};
             
@@ -771,7 +935,7 @@
                 options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } }
             });
 
-            // Chart 3: Attendance (Last 7 Days)
+            // Chart 3: Attendance
             let attCounts = new Array(7).fill(0);
             db.employees.forEach(emp => {
                 if(activeSite !== "All" && emp.dutyPost !== activeSite) return;
