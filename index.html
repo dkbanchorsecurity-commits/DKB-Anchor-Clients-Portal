@@ -425,19 +425,19 @@
             w.document.write(`<div style="display:flex; justify-content:center; align-items:center; height:100%; background:#051424; margin:0;"><img src="${imgData}" style="max-width: 100%; max-height: 100%; border: 4px solid #D4AF37; border-radius: 8px;"></div>`); 
         };
 
-        // --- BULLETPROOF 24-HOUR FORMATTERS (NO BROWSER LOCALE RELIANCE) ---
+        // --- BULLETPROOF 24-HOUR FORMATTERS ---
 
         // 1. Formatter for pure time values (Attendance Clocks)
         function force24HourOnly(timeVal) {
             if (!timeVal || timeVal === "-") return "-";
             
-            // If the database stored it purely as a text string like "06:30 PM"
+            // Handles strings like "6:30 PM" or "06:30:45 AM"
             if (typeof timeVal === 'string') {
-                const timeMatch = timeVal.match(/^\s*(\d+):(\d+)\s*(AM|PM)?\s*$/i);
-                if (timeMatch) {
-                    let h = parseInt(timeMatch[1], 10);
-                    let m = timeMatch[2];
-                    let modifier = timeMatch[3];
+                const match = timeVal.match(/(\d{1,2}):(\d{2})(?::\d{1,2})?\s*(AM|PM)?/i);
+                if (match) {
+                    let h = parseInt(match[1], 10);
+                    let m = match[2];
+                    let modifier = match[3];
 
                     if (modifier) {
                         if (h === 12 && modifier.toUpperCase() === 'AM') h = 0;
@@ -447,23 +447,20 @@
                 }
             }
 
-            // If the database stored it as a full Date or Firestore Timestamp
-            let d = null;
-            if (typeof timeVal.toDate === 'function') d = timeVal.toDate();
-            else d = new Date(timeVal);
-
+            // Handles standard JavaScript Dates or Firestore Timestamps
+            let d = typeof timeVal.toDate === 'function' ? timeVal.toDate() : new Date(timeVal);
             if (d && !isNaN(d.getTime())) {
-                const hrs = String(d.getHours()).padStart(2, '0');
-                const mins = String(d.getMinutes()).padStart(2, '0');
-                return `${hrs}:${mins}`; 
+                return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
             }
 
-            return String(timeVal); // Ultimate fallback
+            return String(timeVal); 
         }
 
         // 2. Formatter for full Date + Time (Patrols & Incidents)
         function forceDateTime24(dateVal) {
             if (!dateVal) return "-";
+            
+            // Checks if it parses cleanly as a valid Date object
             let d = typeof dateVal.toDate === 'function' ? dateVal.toDate() : new Date(dateVal);
             
             if (d && !isNaN(d.getTime())) {
@@ -472,9 +469,19 @@
                 const year = d.getFullYear();
                 const hrs = String(d.getHours()).padStart(2, '0');
                 const mins = String(d.getMinutes()).padStart(2, '0');
-                
-                // Formats exactly as: DD/MM/YYYY 18:00
-                return `${day}/${month}/${year} ${hrs}:${mins}`;
+                return `${year}-${month}-${day} ${hrs}:${mins}`;
+            }
+
+            // If it failed to parse as a Date (weird string structure), use Regex to extract and convert just the time part
+            if (typeof dateVal === 'string') {
+                return dateVal.replace(/(\d{1,2}):(\d{2})(?::\d{1,2})?\s*(AM|PM)?/i, (match, h, m, mod) => {
+                    let hour = parseInt(h, 10);
+                    if (mod) {
+                        if (hour === 12 && mod.toUpperCase() === 'AM') hour = 0;
+                        if (hour < 12 && mod.toUpperCase() === 'PM') hour += 12;
+                    }
+                    return `${String(hour).padStart(2, '0')}:${m}`;
+                });
             }
             return String(dateVal);
         }
