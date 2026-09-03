@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0A2540">
     
-    <!-- Icons & Libraries -->
+    <!-- Icons and Libraries -->
     <link rel="apple-touch-icon" href="logo.png">
     <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -102,7 +102,7 @@
         .chart-box h3 { color: var(--primary-color); font-size: 1.1rem; margin-bottom: 15px; text-align: center; }
         .canvas-container { flex: 1; position: relative; min-height: 250px; width: 100%; }
 
-        /* PANELS & TABLES */
+        /* PANELS and TABLES */
         .panel { background: var(--panel-bg); padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border-color); margin-bottom: 20px; }
         .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         .panel-header h2 { font-size: 1.3rem; color: var(--primary-color); margin: 0; }
@@ -268,8 +268,8 @@
                                     <th>Date</th>
                                     <th>Guard Name</th>
                                     <th>Shift</th>
-                                    <th>Clock In</th>
-                                    <th>Clock Out</th>
+                                    <th>Clock In (24h)</th>
+                                    <th>Clock Out (24h)</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -295,7 +295,7 @@
                         <table class="data-table" id="patrolsTable">
                             <thead>
                                 <tr>
-                                    <th>Date & Time</th>
+                                    <th>Date and Time</th>
                                     <th>Reporting Guard</th>
                                     <th>Observation Details</th>
                                     <th>DKB Action Status</th>
@@ -331,7 +331,7 @@
                         <table class="data-table" id="incidentsTable">
                             <thead>
                                 <tr>
-                                    <th>Date & Time</th>
+                                    <th>Date and Time</th>
                                     <th>Category</th>
                                     <th>Incident Description</th>
                                     <th>Resolution Status</th>
@@ -425,6 +425,60 @@
             w.document.write(`<div style="display:flex; justify-content:center; align-items:center; height:100%; background:#051424; margin:0;"><img src="${imgData}" style="max-width: 100%; max-height: 100%; border: 4px solid #D4AF37; border-radius: 8px;"></div>`); 
         };
 
+        // --- BULLETPROOF 24-HOUR FORMATTERS (NO BROWSER LOCALE RELIANCE) ---
+
+        // 1. Formatter for pure time values (Attendance Clocks)
+        function force24HourOnly(timeVal) {
+            if (!timeVal || timeVal === "-") return "-";
+            
+            // If the database stored it purely as a text string like "06:30 PM"
+            if (typeof timeVal === 'string') {
+                const timeMatch = timeVal.match(/^\s*(\d+):(\d+)\s*(AM|PM)?\s*$/i);
+                if (timeMatch) {
+                    let h = parseInt(timeMatch[1], 10);
+                    let m = timeMatch[2];
+                    let modifier = timeMatch[3];
+
+                    if (modifier) {
+                        if (h === 12 && modifier.toUpperCase() === 'AM') h = 0;
+                        if (h < 12 && modifier.toUpperCase() === 'PM') h += 12;
+                    }
+                    return `${String(h).padStart(2, '0')}:${m}`;
+                }
+            }
+
+            // If the database stored it as a full Date or Firestore Timestamp
+            let d = null;
+            if (typeof timeVal.toDate === 'function') d = timeVal.toDate();
+            else d = new Date(timeVal);
+
+            if (d && !isNaN(d.getTime())) {
+                const hrs = String(d.getHours()).padStart(2, '0');
+                const mins = String(d.getMinutes()).padStart(2, '0');
+                return `${hrs}:${mins}`; 
+            }
+
+            return String(timeVal); // Ultimate fallback
+        }
+
+        // 2. Formatter for full Date + Time (Patrols & Incidents)
+        function forceDateTime24(dateVal) {
+            if (!dateVal) return "-";
+            let d = typeof dateVal.toDate === 'function' ? dateVal.toDate() : new Date(dateVal);
+            
+            if (d && !isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                const hrs = String(d.getHours()).padStart(2, '0');
+                const mins = String(d.getMinutes()).padStart(2, '0');
+                
+                // Formats exactly as: DD/MM/YYYY 18:00
+                return `${day}/${month}/${year} ${hrs}:${mins}`;
+            }
+            return String(dateVal);
+        }
+
         // CSV EXPORT HELPER
         function downloadCSV(filename, csvData) {
             const link = document.createElement("a");
@@ -438,7 +492,6 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('landscape');
             
-            // DKB Anchor Branding Header
             doc.setFontSize(22);
             doc.setTextColor(10, 37, 64); 
             doc.text("DKB Anchor Security Services", 14, 20);
@@ -461,7 +514,6 @@
             doc.save(filename);
         }
 
-        // --- SMART CROSS-REFERENCE FILTER HELPER ---
         function getSiteFilters(activeSite) {
             const siteEmployees = db.employees.filter(emp => activeSite === "All" || emp.dutyPost === activeSite);
             const validNames = siteEmployees.map(e => (e.name || "").toLowerCase().trim());
@@ -494,7 +546,7 @@
             const [year, month] = monthVal.split('-');
             const daysInMonth = new Date(year, month, 0).getDate();
             
-            let csv = "Date,Guard Name,Shift,Clock In,Clock Out,Status\n";
+            let csv = "Date,Guard Name,Shift,Clock In (24h),Clock Out (24h),Status\n";
             const { employees: relevantEmployees } = getSiteFilters(activeSite);
             
             for (let day = 1; day <= daysInMonth; day++) {
@@ -505,8 +557,8 @@
                     const log = dailyLogs.find(l => l.empId === emp.id);
                     const isOffDuty = emp.status === 'Off Duty';
                     
-                    let timeIn = log ? (log.clockIn || "-") : "-";
-                    let timeOut = log ? (log.clockOut || "-") : "-";
+                    let timeIn = log && log.clockIn ? force24HourOnly(log.clockIn) : "-";
+                    let timeOut = log && log.clockOut ? force24HourOnly(log.clockOut) : "-";
                     let status = isOffDuty ? "Off Duty" : "Absent";
                     if (log) status = log.clockOut ? "Completed" : "On Duty";
                     
@@ -528,10 +580,9 @@
                 });
             }
             
-            let csv = "Date & Time,Reporting Guard,Observation Details,Status\n";
+            let csv = "Date and Time,Reporting Guard,Observation Details,Status\n";
             filteredPatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
-                const d = new Date(obs.date);
-                const dateStr = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                const dateStr = forceDateTime24(obs.date);
                 csv += `"${dateStr}","${obs.observer}","${obs.description.replace(/"/g, '""')}","${obs.status}"\n`;
             });
             downloadCSV(`Patrol_Reports_${activeSite.replace(/\s+/g, '_')}.csv`, csv);
@@ -554,10 +605,9 @@
                 filteredIncidents = filteredIncidents.filter(i => i.category === incCategoryFilter);
             }
             
-            let csv = "Date & Time,Category,Incident Details,Status\n";
+            let csv = "Date and Time,Category,Incident Details,Status\n";
             filteredIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
-                const d = new Date(inc.date);
-                const dateStr = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                const dateStr = forceDateTime24(inc.date);
                 csv += `"${dateStr}","${inc.category}","${inc.description.replace(/"/g, '""')}","${inc.status}"\n`;
             });
             downloadCSV(`Incident_Reports_${activeSite.replace(/\s+/g, '_')}.csv`, csv);
@@ -586,8 +636,8 @@
                     const log = dailyLogs.find(l => l.empId === emp.id);
                     const isOffDuty = emp.status === 'Off Duty';
                     
-                    let timeIn = log ? (log.clockIn || "-") : "-";
-                    let timeOut = log ? (log.clockOut || "-") : "-";
+                    let timeIn = log && log.clockIn ? force24HourOnly(log.clockIn) : "-";
+                    let timeOut = log && log.clockOut ? force24HourOnly(log.clockOut) : "-";
                     let status = isOffDuty ? "Off Duty" : "Absent";
                     if (log) status = log.clockOut ? "Completed" : "On Duty";
                     
@@ -609,12 +659,11 @@
                 });
             }
             
-            const columns = ["Date & Time", "Reporting Guard", "Observation Details", "Status"];
+            const columns = ["Date and Time", "Reporting Guard", "Observation Details", "Status"];
             const rows = [];
             
             filteredPatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
-                const d = new Date(obs.date);
-                const dateStr = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                const dateStr = forceDateTime24(obs.date);
                 rows.push([dateStr, obs.observer, obs.description, obs.status]);
             });
             generatePDF(`Patrol Reports - ${activeSite}`, columns, rows, `Patrol_Reports_${activeSite.replace(/\s+/g, '_')}.pdf`);
@@ -637,17 +686,15 @@
                 filteredIncidents = filteredIncidents.filter(i => i.category === incCategoryFilter);
             }
             
-            const columns = ["Date & Time", "Category", "Incident Details", "Status"];
+            const columns = ["Date and Time", "Category", "Incident Details", "Status"];
             const rows = [];
             
             filteredIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
-                const d = new Date(inc.date);
-                const dateStr = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                const dateStr = forceDateTime24(inc.date);
                 rows.push([dateStr, inc.category, inc.description, inc.status]);
             });
             generatePDF(`Incident Reports - ${activeSite}`, columns, rows, `Incident_Reports_${activeSite.replace(/\s+/g, '_')}.pdf`);
         });
-
 
         // AUTHENTICATION FLOW
         onAuthStateChanged(auth, async (user) => {
@@ -668,7 +715,6 @@
                     if (!clientSnap.empty) {
                         const portalUser = clientSnap.docs[0].data();
                         
-                        // Strict Client Lockdown
                         if (portalUser.role === "Client" && portalUser.clientSite) {
                             window.clientProfile = { name: portalUser.clientSite, contactPerson: portalUser.name };
                             document.getElementById('siteFilter').style.display = 'none';
@@ -731,7 +777,6 @@
 
         document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
 
-
         // REAL-TIME DATA SYNC
         function startSync() {
             let empQuery = collection(firestore, "employees");
@@ -764,7 +809,7 @@
             if(currentVal && Array.from(filter.options).some(o => o.value === currentVal)) filter.value = currentVal;
         }
 
-        // RENDER UI & CHARTS
+        // RENDER UI AND CHARTS
         Chart.defaults.font.family = "'Segoe UI', sans-serif";
         Chart.defaults.color = '#718096';
 
@@ -808,11 +853,11 @@
                 let timeIn = "-", timeOut = "-", statusHtml = isOffDuty ? `<span class="badge off-duty-badge"><i class="fa-solid fa-power-off"></i> Off Duty</span>` : `<span class="badge danger-badge"><i class="fa-solid fa-xmark"></i> Absent</span>`, photoIn = "", photoOut = "";
                 
                 if (log) {
-                    timeIn = log.clockIn;
+                    timeIn = log.clockIn ? force24HourOnly(log.clockIn) : "-";
                     if(log.photoIn) photoIn = `<br><span class="photo-link" onclick="viewGuardPhoto('${log.photoIn}')"><i class="fa-solid fa-camera"></i> Photo</span>`;
                     
                     if (log.clockOut) {
-                        timeOut = log.clockOut;
+                        timeOut = force24HourOnly(log.clockOut);
                         if(log.photoOut) photoOut = `<br><span class="photo-link" onclick="viewGuardPhoto('${log.photoOut}')"><i class="fa-solid fa-camera"></i> Photo</span>`;
                         statusHtml = `<span class="badge success-badge"><i class="fa-solid fa-check"></i> Completed</span>`;
                     } else {
@@ -845,13 +890,14 @@
             }
 
             tablePatrols.sort((a, b) => b.timestamp - a.timestamp).forEach(obs => {
-                const d = new Date(obs.date);
                 let photoHtml = obs.photo ? `<br><span class="photo-link" onclick="viewGuardPhoto('${obs.photo}')"><i class="fa-solid fa-image"></i> View Proof</span>` : "";
                 let statusClass = obs.status === 'Addressed' ? 'success-badge' : (obs.status === 'Reviewed' ? 'info-badge' : 'warning-badge');
                 let statusIcon = obs.status === 'Addressed' ? 'fa-check-double' : (obs.status === 'Reviewed' ? 'fa-check' : 'fa-clock');
+                
+                const exactDateTime = forceDateTime24(obs.date);
 
                 const tr = document.createElement("tr");
-                tr.innerHTML = `<td>${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td><td><strong>${obs.observer}</strong></td><td style="max-width:300px; line-height:1.4;">${obs.description}${photoHtml}</td><td><span class="badge ${statusClass}"><i class="fa-solid ${statusIcon}"></i> ${obs.status}</span></td>`;
+                tr.innerHTML = `<td>${exactDateTime}</td><td><strong>${obs.observer}</strong></td><td style="max-width:300px; line-height:1.4;">${obs.description}${photoHtml}</td><td><span class="badge ${statusClass}"><i class="fa-solid ${statusIcon}"></i> ${obs.status}</span></td>`;
                 patBody.appendChild(tr);
             });
 
@@ -876,13 +922,14 @@
             if(incCategoryFilter !== "All") tableIncidents = tableIncidents.filter(i => i.category === incCategoryFilter);
 
             tableIncidents.sort((a, b) => b.timestamp - a.timestamp).forEach(inc => {
-                const d = new Date(inc.date);
                 let photoHtml = inc.photo ? `<br><span class="photo-link" style="color:var(--danger-color)" onclick="viewGuardPhoto('${inc.photo}')"><i class="fa-solid fa-triangle-exclamation"></i> View Evidence</span>` : "";
                 let statusClass = inc.status === 'Closed' ? 'success-badge' : (inc.status === 'Investigating' ? 'warning-badge' : 'danger-badge');
                 let catColor = inc.category === 'Theft' ? 'var(--danger-color)' : (inc.category === 'Medical' ? 'var(--info-color)' : 'var(--warning-color)');
 
+                const exactDateTime = forceDateTime24(inc.date);
+
                 const tr = document.createElement("tr");
-                tr.innerHTML = `<td>${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td><td><strong style="color:${catColor}">${inc.category}</strong></td><td style="max-width:300px; line-height:1.4;">${inc.description}${photoHtml}</td><td><span class="badge ${statusClass}">${inc.status}</span></td>`;
+                tr.innerHTML = `<td>${exactDateTime}</td><td><strong style="color:${catColor}">${inc.category}</strong></td><td style="max-width:300px; line-height:1.4;">${inc.description}${photoHtml}</td><td><span class="badge ${statusClass}">${inc.status}</span></td>`;
                 incBody.appendChild(tr);
             });
 
@@ -964,6 +1011,6 @@
                 .catch((err) => console.log('Service Worker registration failed:', err));
         });
     }
-</script>
+    </script>
 </body>
 </html>
