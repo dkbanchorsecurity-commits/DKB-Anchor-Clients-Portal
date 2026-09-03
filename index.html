@@ -224,19 +224,14 @@
                 </div>
 
                 <div class="charts-row">
-                    <!-- Chart 1: Patrol Trends -->
                     <div class="chart-box">
                         <h3>Patrol Activity Trend (Last 7 Days)</h3>
                         <div class="canvas-container"><canvas id="patrolChart"></canvas></div>
                     </div>
-                    
-                    <!-- Chart 2: Incident Breakdown -->
                     <div class="chart-box">
                         <h3>Incident Categorization (Year-to-Date)</h3>
                         <div class="canvas-container"><canvas id="incidentChart"></canvas></div>
                     </div>
-                    
-                    <!-- Chart 3: Attendance Compliance -->
                     <div class="chart-box">
                         <h3>Guard Deployment (This Week)</h3>
                         <div class="canvas-container"><canvas id="attendanceChart"></canvas></div>
@@ -270,6 +265,7 @@
                                     <th>Shift</th>
                                     <th>Clock In (24h)</th>
                                     <th>Clock Out (24h)</th>
+                                    <th>Clock In GPS</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -425,20 +421,16 @@
             w.document.write(`<div style="display:flex; justify-content:center; align-items:center; height:100%; background:#051424; margin:0;"><img src="${imgData}" style="max-width: 100%; max-height: 100%; border: 4px solid #D4AF37; border-radius: 8px;"></div>`); 
         };
 
-        // --- BULLETPROOF 24-HOUR FORMATTERS ---
+        // --- BULLETPROOF FORMATTERS ---
 
-        // 1. Formatter for pure time values (Attendance Clocks)
         function force24HourOnly(timeVal) {
             if (!timeVal || timeVal === "-") return "-";
-            
-            // Handles strings like "6:30 PM" or "06:30:45 AM"
             if (typeof timeVal === 'string') {
                 const match = timeVal.match(/(\d{1,2}):(\d{2})(?::\d{1,2})?\s*(AM|PM)?/i);
                 if (match) {
                     let h = parseInt(match[1], 10);
                     let m = match[2];
                     let modifier = match[3];
-
                     if (modifier) {
                         if (h === 12 && modifier.toUpperCase() === 'AM') h = 0;
                         if (h < 12 && modifier.toUpperCase() === 'PM') h += 12;
@@ -446,23 +438,16 @@
                     return `${String(h).padStart(2, '0')}:${m}`;
                 }
             }
-
-            // Handles standard JavaScript Dates or Firestore Timestamps
             let d = typeof timeVal.toDate === 'function' ? timeVal.toDate() : new Date(timeVal);
             if (d && !isNaN(d.getTime())) {
                 return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
             }
-
             return String(timeVal); 
         }
 
-        // 2. Formatter for full Date + Time (Patrols & Incidents)
         function forceDateTime24(dateVal) {
             if (!dateVal) return "-";
-            
-            // Checks if it parses cleanly as a valid Date object
             let d = typeof dateVal.toDate === 'function' ? dateVal.toDate() : new Date(dateVal);
-            
             if (d && !isNaN(d.getTime())) {
                 const day = String(d.getDate()).padStart(2, '0');
                 const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -471,8 +456,6 @@
                 const mins = String(d.getMinutes()).padStart(2, '0');
                 return `${year}-${month}-${day} ${hrs}:${mins}`;
             }
-
-            // If it failed to parse as a Date (weird string structure), use Regex to extract and convert just the time part
             if (typeof dateVal === 'string') {
                 return dateVal.replace(/(\d{1,2}):(\d{2})(?::\d{1,2})?\s*(AM|PM)?/i, (match, h, m, mod) => {
                     let hour = parseInt(h, 10);
@@ -486,7 +469,40 @@
             return String(dateVal);
         }
 
-        // CSV EXPORT HELPER
+        // --- GPS COORDINATE EXTRACTORS (ATTENDANCE ONLY) ---
+        
+        function getCoordsHtml(obj) {
+            if (!obj) return "-";
+            let lat = obj.clockInLat || obj.latitude || obj.lat;
+            let lng = obj.clockInLng || obj.longitude || obj.lng || obj.long;
+            let coordsStr = obj.clockInLocation || obj.coordinates || obj.location;
+
+            if (lat !== undefined && lng !== undefined) {
+                return `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="photo-link" style="color:var(--info-color);"><i class="fa-solid fa-location-dot"></i> ${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}</a>`;
+            } else if (coordsStr && typeof coordsStr === 'string' && coordsStr.includes(',')) {
+                return `<a href="https://maps.google.com/?q=${coordsStr}" target="_blank" class="photo-link" style="color:var(--info-color);"><i class="fa-solid fa-location-dot"></i> View Map</a>`;
+            } else if (coordsStr) {
+                return coordsStr;
+            }
+            return "-";
+        }
+
+        function getCoordsText(obj) {
+            if (!obj) return "N/A";
+            let lat = obj.clockInLat || obj.latitude || obj.lat;
+            let lng = obj.clockInLng || obj.longitude || obj.lng || obj.long;
+            let coordsStr = obj.clockInLocation || obj.coordinates || obj.location;
+
+            if (lat !== undefined && lng !== undefined) {
+                return `${lat}, ${lng}`;
+            } else if (coordsStr && typeof coordsStr === 'string') {
+                return coordsStr;
+            }
+            return "N/A";
+        }
+
+        // --- EXPORT HELPERS ---
+
         function downloadCSV(filename, csvData) {
             const link = document.createElement("a");
             link.href = URL.createObjectURL(new Blob([csvData], { type: 'text/csv' }));
@@ -494,7 +510,6 @@
             link.click();
         }
 
-        // PDF EXPORT HELPER
         function generatePDF(title, columns, data, filename) {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('landscape');
@@ -513,7 +528,7 @@
                 body: data,
                 theme: 'striped',
                 headStyles: { fillColor: [10, 37, 64], textColor: [212, 175, 55] },
-                styles: { fontSize: 10, cellPadding: 3 },
+                styles: { fontSize: 9, cellPadding: 3 },
                 alternateRowStyles: { fillColor: [244, 246, 248] },
                 margin: { top: 30 }
             });
@@ -553,7 +568,7 @@
             const [year, month] = monthVal.split('-');
             const daysInMonth = new Date(year, month, 0).getDate();
             
-            let csv = "Date,Guard Name,Shift,Clock In (24h),Clock Out (24h),Status\n";
+            let csv = "Date,Guard Name,Shift,Clock In (24h),Clock Out (24h),Clock In GPS,Status\n";
             const { employees: relevantEmployees } = getSiteFilters(activeSite);
             
             for (let day = 1; day <= daysInMonth; day++) {
@@ -566,10 +581,11 @@
                     
                     let timeIn = log && log.clockIn ? force24HourOnly(log.clockIn) : "-";
                     let timeOut = log && log.clockOut ? force24HourOnly(log.clockOut) : "-";
+                    let coordsText = log ? getCoordsText(log) : "N/A";
                     let status = isOffDuty ? "Off Duty" : "Absent";
                     if (log) status = log.clockOut ? "Completed" : "On Duty";
                     
-                    csv += `"${dateStr}","${emp.name}","${emp.shift || 'N/A'}","${timeIn}","${timeOut}","${status}"\n`;
+                    csv += `"${dateStr}","${emp.name}","${emp.shift || 'N/A'}","${timeIn}","${timeOut}","${coordsText}","${status}"\n`;
                 });
             }
             downloadCSV(`Monthly_Attendance_${activeSite.replace(/\s+/g, '_')}_${monthVal}.csv`, csv);
@@ -631,7 +647,7 @@
             const [year, month] = monthVal.split('-');
             const daysInMonth = new Date(year, month, 0).getDate();
             
-            const columns = ["Date", "Guard Name", "Shift", "Clock In", "Clock Out", "Status"];
+            const columns = ["Date", "Guard Name", "Shift", "Clock In", "Clock Out", "Clock In GPS", "Status"];
             const rows = [];
             const { employees: relevantEmployees } = getSiteFilters(activeSite);
             
@@ -645,10 +661,11 @@
                     
                     let timeIn = log && log.clockIn ? force24HourOnly(log.clockIn) : "-";
                     let timeOut = log && log.clockOut ? force24HourOnly(log.clockOut) : "-";
+                    let coordsText = log ? getCoordsText(log) : "N/A";
                     let status = isOffDuty ? "Off Duty" : "Absent";
                     if (log) status = log.clockOut ? "Completed" : "On Duty";
                     
-                    rows.push([dateStr, emp.name, emp.shift || 'N/A', timeIn, timeOut, status]);
+                    rows.push([dateStr, emp.name, emp.shift || 'N/A', timeIn, timeOut, coordsText, status]);
                 });
             }
             generatePDF(`Monthly Attendance - ${activeSite} (${monthVal})`, columns, rows, `Monthly_Attendance_${activeSite.replace(/\s+/g, '_')}_${monthVal}.pdf`);
@@ -858,6 +875,7 @@
                 
                 const isOffDuty = emp.status === 'Off Duty';
                 let timeIn = "-", timeOut = "-", statusHtml = isOffDuty ? `<span class="badge off-duty-badge"><i class="fa-solid fa-power-off"></i> Off Duty</span>` : `<span class="badge danger-badge"><i class="fa-solid fa-xmark"></i> Absent</span>`, photoIn = "", photoOut = "";
+                let coordsHtml = log ? getCoordsHtml(log) : "-";
                 
                 if (log) {
                     timeIn = log.clockIn ? force24HourOnly(log.clockIn) : "-";
@@ -873,7 +891,7 @@
                 }
 
                 const tr = document.createElement("tr");
-                tr.innerHTML = `<td>${attDate}</td><td><strong>${emp.name}</strong></td><td><span class="badge ${emp.shift === 'Day' ? 'info-badge' : 'danger-badge'}">${emp.shift || 'N/A'}</span></td><td style="font-family: monospace; font-weight:bold;">${timeIn}${photoIn}</td><td style="font-family: monospace; font-weight:bold;">${timeOut}${photoOut}</td><td>${statusHtml}</td>`;
+                tr.innerHTML = `<td>${attDate}</td><td><strong>${emp.name}</strong></td><td><span class="badge ${emp.shift === 'Day' ? 'info-badge' : 'danger-badge'}">${emp.shift || 'N/A'}</span></td><td style="font-family: monospace; font-weight:bold;">${timeIn}${photoIn}</td><td style="font-family: monospace; font-weight:bold;">${timeOut}${photoOut}</td><td>${coordsHtml}</td><td>${statusHtml}</td>`;
                 attBody.appendChild(tr);
             });
 
