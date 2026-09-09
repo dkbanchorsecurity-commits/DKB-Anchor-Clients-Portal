@@ -81,7 +81,7 @@
         .client-controls { display: flex; align-items: center; gap: 15px; }
         .site-badge { padding: 8px 15px; border-radius: 4px; border: 1px solid rgba(212, 175, 55, 0.5); background: var(--secondary-color); color: white; font-weight: bold; font-size: 0.95rem; outline: none; }
 
-        /* NAVIGATION TABS (Mobile Ribbon Style) */
+        /* NAVIGATION TABS */
         .tabs { display: flex; background: #fff; padding: 0 30px; border-bottom: 1px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch; flex-shrink: 0; scrollbar-width: none; }
         .tabs::-webkit-scrollbar { display: none; }
         .tab-btn { background: none; border: none; padding: 15px 20px; font-size: 1rem; font-weight: bold; color: var(--gray-color); cursor: pointer; border-bottom: 3px solid transparent; transition: 0.3s; white-space: nowrap; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -478,49 +478,74 @@
             return String(dateVal);
         }
 
-        // --- GPS COORDINATE EXTRACTORS (ATTENDANCE ONLY) ---
+        // --- SMART GPS COORDINATE EXTRACTORS ---
         
+        function extractLatLng(obj) {
+            if (!obj || typeof obj !== 'object') return null;
+            if ('lat' in obj && 'lng' in obj) return { lat: obj.lat, lng: obj.lng };
+            if ('latitude' in obj && 'longitude' in obj) return { lat: obj.latitude, lng: obj.longitude };
+            if ('lat' in obj && 'long' in obj) return { lat: obj.lat, lng: obj.long };
+            return null;
+        }
+
         function getCoordsHtml(obj) {
             if (!obj) return "-";
             
-            let lat = obj.gpsIn ? obj.gpsIn.lat || obj.gpsIn.latitude : undefined;
-            let lng = obj.gpsIn ? obj.gpsIn.lng || obj.gpsIn.longitude : undefined;
-
-            if (lat === undefined || lng === undefined) {
-                lat = obj.clockInLat || obj.latitude || obj.lat;
-                lng = obj.clockInLng || obj.longitude || obj.lng || obj.long;
+            let coords = extractLatLng(obj.gpsIn) || 
+                         extractLatLng(obj.clockInGps) || 
+                         extractLatLng(obj.location) || 
+                         extractLatLng(obj.coordinates) || 
+                         extractLatLng(obj); 
+                         
+            if (!coords) {
+                for (let key in obj) {
+                    if (obj[key] && typeof obj[key] === 'object') {
+                        coords = extractLatLng(obj[key]);
+                        if (coords) break;
+                    }
+                }
             }
 
-            let coordsStr = obj.clockInLocation || obj.coordinates || obj.location;
-
-            if (lat !== undefined && lng !== undefined) {
-                return `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="photo-link" style="color:var(--info-color);"><i class="fa-solid fa-location-dot"></i> ${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}</a>`;
-            } else if (coordsStr && typeof coordsStr === 'string' && coordsStr.includes(',')) {
-                return `<a href="https://maps.google.com/?q=${coordsStr}" target="_blank" class="photo-link" style="color:var(--info-color);"><i class="fa-solid fa-location-dot"></i> View Map</a>`;
-            } else if (coordsStr && typeof coordsStr === 'string') {
-                return coordsStr;
+            if (coords && coords.lat !== undefined && coords.lng !== undefined) {
+                return `<a href="https://maps.google.com/?q=${coords.lat},${coords.lng}" target="_blank" class="photo-link" style="color:var(--info-color);"><i class="fa-solid fa-location-dot"></i> ${Number(coords.lat).toFixed(4)}, ${Number(coords.lng).toFixed(4)}</a>`;
             }
+            
+            let str = obj.clockInLocation || obj.gpsIn || obj.location || obj.coordinates;
+            if (typeof str === 'string') {
+                if (str.includes(',')) {
+                    return `<a href="https://maps.google.com/?q=${str}" target="_blank" class="photo-link" style="color:var(--info-color);"><i class="fa-solid fa-location-dot"></i> View Map</a>`;
+                }
+                return str;
+            }
+            
             return "-";
         }
 
         function getCoordsText(obj) {
             if (!obj) return "N/A";
             
-            let lat = obj.gpsIn ? obj.gpsIn.lat || obj.gpsIn.latitude : undefined;
-            let lng = obj.gpsIn ? obj.gpsIn.lng || obj.gpsIn.longitude : undefined;
+            let coords = extractLatLng(obj.gpsIn) || 
+                         extractLatLng(obj.clockInGps) || 
+                         extractLatLng(obj.location) || 
+                         extractLatLng(obj.coordinates) || 
+                         extractLatLng(obj);
 
-            if (lat === undefined || lng === undefined) {
-                lat = obj.clockInLat || obj.latitude || obj.lat;
-                lng = obj.clockInLng || obj.longitude || obj.lng || obj.long;
+            if (!coords) {
+                for (let key in obj) {
+                    if (obj[key] && typeof obj[key] === 'object') {
+                        coords = extractLatLng(obj[key]);
+                        if (coords) break;
+                    }
+                }
             }
 
-            let coordsStr = obj.clockInLocation || obj.coordinates || obj.location;
-
-            if (lat !== undefined && lng !== undefined) {
-                return `${lat}, ${lng}`;
-            } else if (coordsStr && typeof coordsStr === 'string') {
-                return coordsStr;
+            if (coords && coords.lat !== undefined && coords.lng !== undefined) {
+                return `${coords.lat}, ${coords.lng}`;
             }
+            
+            let str = obj.clockInLocation || obj.gpsIn || obj.location || obj.coordinates;
+            if (typeof str === 'string') return str;
+            
             return "N/A";
         }
 
