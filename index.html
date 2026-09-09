@@ -46,7 +46,9 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: var(--bg-light); color: var(--text-dark); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* Mobile Viewport Fix */
+        body { background-color: var(--bg-light); color: var(--text-dark); display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
 
         /* BUTTONS */
         .btn-primary { background-color: var(--primary-color); color: var(--text-light); border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; transition: background 0.3s; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
@@ -61,32 +63,33 @@
         .btn-pdf:hover:not(:disabled) { background-color: #C53030; color: white;}
 
         /* LOGIN SCREEN */
-        #login-container { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)); justify-content: center; align-items: center; z-index: 10000; transition: opacity 0.3s ease; }
-        .login-box { background: var(--panel-bg); padding: 40px; border-radius: 8px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); width: 90%; max-width: 400px; text-align: center; border-top: 5px solid var(--accent-color); animation: fadeIn 0.5s ease-out; }
-        .login-box h2 { color: var(--primary-color); margin-bottom: 5px; }
+        #login-container { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100dvh; background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)); justify-content: center; align-items: center; z-index: 10000; transition: opacity 0.3s ease; padding: 15px; }
+        .login-box { background: var(--panel-bg); padding: 40px 30px; border-radius: 8px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center; border-top: 5px solid var(--accent-color); animation: fadeIn 0.5s ease-out; }
+        .login-box h2 { color: var(--primary-color); margin-bottom: 5px; font-size: 1.5rem; }
         .login-box p { color: var(--gray-color); margin-bottom: 25px; font-size: 0.9rem; }
         .form-group { text-align: left; margin-bottom: 15px; }
         .form-group label { color: var(--primary-color); font-weight: bold; font-size: 0.85rem; }
-        .form-group input { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); margin-top: 5px; outline: none; }
+        .form-group input { width: 100%; padding: 12px 10px; border-radius: 4px; border: 1px solid var(--border-color); margin-top: 5px; outline: none; font-size: 1rem; }
         .form-group input:focus { border-color: var(--accent-color); }
 
         /* HEADER */
         #app-container { display: none; width: 100%; height: 100%; flex-direction: column; animation: fadeIn 0.4s ease-out; }
-        header { background-color: var(--primary-color); color: var(--text-light); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 10; flex-wrap: wrap; gap: 15px; border-bottom: 3px solid var(--accent-color); }
+        header { background-color: var(--primary-color); color: var(--text-light); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 10; flex-wrap: wrap; gap: 15px; border-bottom: 3px solid var(--accent-color); flex-shrink: 0; }
         .brand { display: flex; align-items: center; gap: 15px; }
         .brand h1 { font-size: 1.5rem; color: var(--accent-color); margin: 0; letter-spacing: 1px; font-family: 'Footlight MT Light', serif; }
         .brand p { font-size: 0.85rem; opacity: 0.8; margin: 0; }
         .client-controls { display: flex; align-items: center; gap: 15px; }
         .site-badge { padding: 8px 15px; border-radius: 4px; border: 1px solid rgba(212, 175, 55, 0.5); background: var(--secondary-color); color: white; font-weight: bold; font-size: 0.95rem; outline: none; }
 
-        /* NAVIGATION TABS */
-        .tabs { display: flex; background: #fff; padding: 0 30px; border-bottom: 1px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch; flex-shrink: 0; }
-        .tab-btn { background: none; border: none; padding: 15px 20px; font-size: 1rem; font-weight: bold; color: var(--gray-color); cursor: pointer; border-bottom: 3px solid transparent; transition: 0.3s; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+        /* NAVIGATION TABS (Mobile Ribbon Style) */
+        .tabs { display: flex; background: #fff; padding: 0 30px; border-bottom: 1px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch; flex-shrink: 0; scrollbar-width: none; }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab-btn { background: none; border: none; padding: 15px 20px; font-size: 1rem; font-weight: bold; color: var(--gray-color); cursor: pointer; border-bottom: 3px solid transparent; transition: 0.3s; white-space: nowrap; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
         .tab-btn:hover { color: var(--primary-color); }
         .tab-btn.active { color: var(--primary-color); border-bottom-color: var(--accent-color); }
 
         /* MAIN CONTENT */
-        main { flex: 1; padding: 30px; overflow-y: auto; }
+        main { flex: 1; padding: 30px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         .tab-content { display: none; animation: fadeIn 0.3s ease-in-out; }
         .tab-content.active { display: block; }
 
@@ -108,16 +111,16 @@
         .panel-header h2 { font-size: 1.3rem; color: var(--primary-color); margin: 0; }
         
         .controls-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .search-input { padding: 8px 15px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.9rem; outline: none; min-width: 250px; }
+        .search-input { padding: 10px 15px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.95rem; outline: none; min-width: 250px; }
         .search-input:focus { border-color: var(--accent-color); }
 
-        .table-responsive { width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 4px; }
+        .table-responsive { width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 4px; -webkit-overflow-scrolling: touch; }
         .data-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; min-width: 800px; }
         .data-table th, .data-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        .data-table th { background-color: var(--primary-color); color: var(--accent-color); position: sticky; top: 0; font-weight: 600; }
+        .data-table th { background-color: var(--primary-color); color: var(--accent-color); position: sticky; top: 0; font-weight: 600; white-space: nowrap; }
         
         /* BADGES */
-        .badge { padding: 5px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; }
+        .badge { padding: 5px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
         .success-badge { background-color: rgba(56, 161, 105, 0.1); color: var(--success-color); border: 1px solid var(--success-color); }
         .warning-badge { background-color: rgba(212, 175, 55, 0.1); color: var(--warning-color); border: 1px solid var(--warning-color); }
         .danger-badge { background-color: rgba(229, 62, 62, 0.1); color: var(--danger-color); border: 1px solid var(--danger-color); }
@@ -133,19 +136,25 @@
         @media (max-width: 768px) {
             header { flex-direction: column; align-items: stretch; padding: 15px; }
             .brand { justify-content: center; text-align: center; }
-            .client-controls { flex-direction: column; width: 100%; margin-top: 10px; }
-            .site-badge, .btn-outline { width: 100%; text-align: center; justify-content: center; }
+            .client-controls { flex-direction: column; width: 100%; margin-top: 15px; gap: 10px; }
+            .site-badge, .btn-outline { width: 100%; text-align: center; justify-content: center; padding: 12px; }
             
-            .tabs { padding: 0; }
-            .tab-btn { padding: 12px 15px; font-size: 0.9rem; flex: 1; justify-content: center; }
+            .tabs { padding: 0 15px; }
+            .tab-btn { padding: 15px 20px; font-size: 0.95rem; }
             
             main { padding: 15px; }
-            .dashboard-cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .panel { padding: 15px; }
             
-            .panel-header { flex-direction: column; align-items: stretch; }
-            .controls-group { flex-direction: column; align-items: stretch; width: 100%; }
-            .controls-group > * { width: 100%; }
-            .search-input { min-width: 100%; }
+            .dashboard-cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .card { padding: 15px; }
+            .card .stat { font-size: 1.8rem; }
+            
+            .panel-header { flex-direction: column; align-items: flex-start; gap: 15px; }
+            .controls-group { flex-direction: column; align-items: stretch; width: 100%; gap: 10px; }
+            .controls-group > div { flex-direction: column; align-items: stretch; gap: 10px; border: none !important; padding: 0 !important; }
+            .search-input { min-width: 100%; width: 100% !important; }
+            
+            .btn-csv, .btn-pdf { width: 100%; padding: 12px; }
         }
         @media (max-width: 480px) {
             .dashboard-cards { grid-template-columns: 1fr; }
@@ -169,10 +178,10 @@
                     <label>Password</label>
                     <div style="position: relative;">
                         <input type="password" id="loginPassword" required style="padding-right: 40px;">
-                        <i class="fa-solid fa-eye" id="toggleLoginPassword" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-color);"></i>
+                        <i class="fa-solid fa-eye" id="toggleLoginPassword" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--gray-color); padding: 10px;"></i>
                     </div>
                 </div>
-                <button type="submit" class="btn-primary" id="loginBtn" style="width: 100%;">Access Portal</button>
+                <button type="submit" class="btn-primary" id="loginBtn" style="width: 100%; padding: 12px; font-size: 1rem; margin-top: 10px;">Access Portal</button>
                 <div id="loginError" style="color: var(--danger-color); font-size: 0.85rem; display: none; background: rgba(229, 62, 62, 0.1); padding: 10px; border-radius: 4px; border: 1px solid var(--danger-color); margin-top: 15px;">Invalid credentials.</div>
             </form>
         </div>
@@ -245,12 +254,12 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-clipboard-user"></i> Daily Attendance Register</h2>
                         <div class="controls-group">
-                            <div style="display: flex; align-items: center; gap: 5px;">
-                                <label style="font-size: 0.8rem; color: var(--gray-color); white-space: nowrap;">Daily View:</label>
-                                <input type="date" class="search-input" id="attendanceDate" style="color: var(--primary-color); font-weight: bold; width: auto;">
+                            <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                                <label style="font-size: 0.85rem; color: var(--gray-color); white-space: nowrap;">Daily View:</label>
+                                <input type="date" class="search-input" id="attendanceDate" style="color: var(--primary-color); font-weight: bold;">
                             </div>
-                            <div style="display: flex; align-items: center; gap: 5px; border-left: 2px solid var(--border-color); padding-left: 15px;">
-                                <input type="month" id="attendanceMonthExport" class="search-input" style="width: auto;">
+                            <div style="display: flex; align-items: center; gap: 10px; border-left: 2px solid var(--border-color); padding-left: 15px;">
+                                <input type="month" id="attendanceMonthExport" class="search-input">
                                 <button class="btn-primary btn-csv" id="exportAttendanceCsvBtn"><i class="fa-solid fa-file-csv"></i> CSV</button>
                                 <button class="btn-primary btn-pdf" id="exportAttendancePdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
                             </div>
@@ -281,7 +290,7 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-route"></i> Routine Patrol Logs</h2>
                         <div class="controls-group">
-                            <input type="month" id="patrolMonthFilter" class="search-input" style="width: auto;" title="Filter by Month">
+                            <input type="month" id="patrolMonthFilter" class="search-input" title="Filter by Month">
                             <input type="text" class="search-input" id="patrolSearch" placeholder="Search logs...">
                             <button class="btn-primary btn-csv" id="exportPatrolsCsvBtn"><i class="fa-solid fa-file-csv"></i> CSV</button>
                             <button class="btn-primary btn-pdf" id="exportPatrolsPdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
@@ -309,8 +318,8 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-triangle-exclamation"></i> Official Incident Reports</h2>
                         <div class="controls-group">
-                            <input type="month" id="incidentMonthFilter" class="search-input" style="width: auto;" title="Filter by Month">
-                            <select class="search-input" id="incidentCategoryFilter" style="width: auto;">
+                            <input type="month" id="incidentMonthFilter" class="search-input" title="Filter by Month">
+                            <select class="search-input" id="incidentCategoryFilter">
                                 <option value="All">All Categories</option>
                                 <option value="Theft">Theft</option>
                                 <option value="Vandalism">Vandalism / Damage</option>
