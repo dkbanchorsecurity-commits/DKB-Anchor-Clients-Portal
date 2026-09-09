@@ -254,12 +254,12 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-clipboard-user"></i> Daily Attendance Register</h2>
                         <div class="controls-group">
-                            <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
                                 <label style="font-size: 0.85rem; color: var(--gray-color); white-space: nowrap;">Daily View:</label>
-                                <input type="date" class="search-input" id="attendanceDate" style="color: var(--primary-color); font-weight: bold;">
+                                <input type="date" class="search-input" id="attendanceDate" style="color: var(--primary-color); font-weight: bold; min-width: auto; width: auto;">
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px; border-left: 2px solid var(--border-color); padding-left: 15px;">
-                                <input type="month" id="attendanceMonthExport" class="search-input">
+                                <input type="month" id="attendanceMonthExport" class="search-input" style="min-width: auto; width: auto;">
                                 <button class="btn-primary btn-csv" id="exportAttendanceCsvBtn"><i class="fa-solid fa-file-csv"></i> CSV</button>
                                 <button class="btn-primary btn-pdf" id="exportAttendancePdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
                             </div>
@@ -290,7 +290,7 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-route"></i> Routine Patrol Logs</h2>
                         <div class="controls-group">
-                            <input type="month" id="patrolMonthFilter" class="search-input" title="Filter by Month">
+                            <input type="month" id="patrolMonthFilter" class="search-input" title="Filter by Month" style="min-width: auto; width: auto;">
                             <input type="text" class="search-input" id="patrolSearch" placeholder="Search logs...">
                             <button class="btn-primary btn-csv" id="exportPatrolsCsvBtn"><i class="fa-solid fa-file-csv"></i> CSV</button>
                             <button class="btn-primary btn-pdf" id="exportPatrolsPdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
@@ -318,8 +318,8 @@
                     <div class="panel-header">
                         <h2><i class="fa-solid fa-triangle-exclamation"></i> Official Incident Reports</h2>
                         <div class="controls-group">
-                            <input type="month" id="incidentMonthFilter" class="search-input" title="Filter by Month">
-                            <select class="search-input" id="incidentCategoryFilter">
+                            <input type="month" id="incidentMonthFilter" class="search-input" title="Filter by Month" style="min-width: auto; width: auto;">
+                            <select class="search-input" id="incidentCategoryFilter" style="min-width: auto; width: auto;">
                                 <option value="All">All Categories</option>
                                 <option value="Theft">Theft</option>
                                 <option value="Vandalism">Vandalism / Damage</option>
@@ -383,13 +383,10 @@
         const tabBtns = document.querySelectorAll('.tab-btn');
         const tabContents = document.querySelectorAll('.tab-content');
 
-        // Main Tab Switcher Function
         window.switchTab = (tabName, fromHistory = false) => {
-            // Remove active classes
             tabBtns.forEach(b => b.classList.remove('active'));
             tabContents.forEach(c => c.classList.remove('active'));
             
-            // Add active class to target
             const targetBtn = document.querySelector(`.tab-btn[data-target="${tabName}"]`);
             const targetContent = document.getElementById(tabName);
             
@@ -398,13 +395,11 @@
                 targetContent.classList.add('active');
             }
 
-            // Push to browser history if not triggered by the popstate event
             if (!fromHistory) {
                 history.pushState({ tab: tabName }, '', '#' + tabName);
             }
         };
 
-        // Click listeners for navigation tabs
         tabBtns.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget.getAttribute('data-target');
@@ -412,23 +407,20 @@
             });
         });
 
-        // Initialize state on load
         window.addEventListener('DOMContentLoaded', () => {
             const hash = window.location.hash.replace('#', '');
             const validTabs = ['dashboard', 'attendance', 'patrols', 'incidents'];
             const startTab = validTabs.includes(hash) ? hash : 'dashboard';
             
-            // Replace current generic history state with specific tab
             history.replaceState({ tab: startTab }, '', '#' + startTab);
             window.switchTab(startTab, true);
         });
 
-        // Intercept device back button
         window.addEventListener('popstate', (event) => {
             if (event.state && event.state.tab) {
                 window.switchTab(event.state.tab, true);
             } else {
-                window.switchTab('dashboard', true); // fallback
+                window.switchTab('dashboard', true);
             }
         });
         // ==========================================
@@ -557,7 +549,6 @@
             if (typeof str === 'string') {
                 const lowerStr = str.toLowerCase();
                 
-                // Intercept native device GPS errors saved to the database
                 if (lowerStr.includes('time out') || lowerStr.includes('timeout') || lowerStr.includes('expired') || lowerStr.includes('denied') || lowerStr.includes('error')) {
                     return `<span class="badge danger-badge" title="${str}"><i class="fa-solid fa-location-crosshairs"></i> GPS Failed</span>`;
                 }
