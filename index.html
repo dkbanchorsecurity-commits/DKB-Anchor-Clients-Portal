@@ -377,18 +377,61 @@
         let charts = { patrol: null, incident: null, attendance: null };
         let syncUnsubscribers = []; 
 
-        // UI TAB SWITCHING
+        // ==========================================
+        // UI TAB SWITCHING & MOBILE HISTORY API
+        // ==========================================
         const tabBtns = document.querySelectorAll('.tab-btn');
         const tabContents = document.querySelectorAll('.tab-content');
+
+        // Main Tab Switcher Function
+        window.switchTab = (tabName, fromHistory = false) => {
+            // Remove active classes
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            
+            // Add active class to target
+            const targetBtn = document.querySelector(`.tab-btn[data-target="${tabName}"]`);
+            const targetContent = document.getElementById(tabName);
+            
+            if (targetBtn && targetContent) {
+                targetBtn.classList.add('active');
+                targetContent.classList.add('active');
+            }
+
+            // Push to browser history if not triggered by the popstate event
+            if (!fromHistory) {
+                history.pushState({ tab: tabName }, '', '#' + tabName);
+            }
+        };
+
+        // Click listeners for navigation tabs
         tabBtns.forEach(btn => {
             btn.addEventListener('click', (e) => {
-                tabBtns.forEach(b => b.classList.remove('active'));
-                tabContents.forEach(c => c.classList.remove('active'));
-                const target = e.currentTarget;
-                target.classList.add('active');
-                document.getElementById(target.getAttribute('data-target')).classList.add('active');
+                const target = e.currentTarget.getAttribute('data-target');
+                window.switchTab(target);
             });
         });
+
+        // Initialize state on load
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.replace('#', '');
+            const validTabs = ['dashboard', 'attendance', 'patrols', 'incidents'];
+            const startTab = validTabs.includes(hash) ? hash : 'dashboard';
+            
+            // Replace current generic history state with specific tab
+            history.replaceState({ tab: startTab }, '', '#' + startTab);
+            window.switchTab(startTab, true);
+        });
+
+        // Intercept device back button
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.tab) {
+                window.switchTab(event.state.tab, true);
+            } else {
+                window.switchTab('dashboard', true); // fallback
+            }
+        });
+        // ==========================================
 
         // FILTERS SETUP
         const currentMonthStr = new Date().toISOString().slice(0, 7);
@@ -478,7 +521,7 @@
             return String(dateVal);
         }
 
-        // --- SMART GPS COORDINATE EXTRACTORS ---
+        // --- SMART GPS COORDINATE EXTRACTORS (ATTENDANCE ONLY) ---
         
         function extractLatLng(obj) {
             if (!obj || typeof obj !== 'object') return null;
@@ -512,10 +555,17 @@
             
             let str = obj.clockInLocation || obj.gpsIn || obj.location || obj.coordinates;
             if (typeof str === 'string') {
+                const lowerStr = str.toLowerCase();
+                
+                // Intercept native device GPS errors saved to the database
+                if (lowerStr.includes('time out') || lowerStr.includes('timeout') || lowerStr.includes('expired') || lowerStr.includes('denied') || lowerStr.includes('error')) {
+                    return `<span class="badge danger-badge" title="${str}"><i class="fa-solid fa-location-crosshairs"></i> GPS Failed</span>`;
+                }
+                
                 if (str.includes(',')) {
                     return `<a href="https://maps.google.com/?q=${str}" target="_blank" class="photo-link" style="color:var(--info-color);"><i class="fa-solid fa-location-dot"></i> View Map</a>`;
                 }
-                return str;
+                return `<span style="font-size:0.85rem; color:var(--gray-color);">${str}</span>`;
             }
             
             return "-";
@@ -544,7 +594,13 @@
             }
             
             let str = obj.clockInLocation || obj.gpsIn || obj.location || obj.coordinates;
-            if (typeof str === 'string') return str;
+            if (typeof str === 'string') {
+                const lowerStr = str.toLowerCase();
+                if (lowerStr.includes('time out') || lowerStr.includes('timeout') || lowerStr.includes('expired') || lowerStr.includes('denied') || lowerStr.includes('error')) {
+                    return "GPS Error (Timeout/Denied)";
+                }
+                return str;
+            }
             
             return "N/A";
         }
